@@ -1,10 +1,37 @@
+import time
+import argparse
 import numpy as np
 
 # for a simple loop
-def dp(N,A,B):
+def dp(N, A, B):
+    R = 0.0
+    for j in range(N):
+        R += A[j] * B[j]
+    return R
+
+def argparser():
+    parser = argparse.ArgumentParser(description='Vector Dot Product')
+    parser.add_argument('-N', type=int, default=1000, help='Size of the vector')
+    parser.add_argument('-R', type=int, default=1, help='Number of repetitions')
+    return parser.parse_args()
+
+if __name__ == "__main__":
+    args = argparser()
+    N = args.N
+    R = args.R
     A = np.ones(N,dtype=np.float32)
     B = np.ones(N,dtype=np.float32)
-    R = 0.0
-    for j in range(0,N):
-        R += A[j]*B[j]
-    return R
+
+    total_time = 0.0
+    for i in range(R):
+        start = time.time()
+        dp(N, A, B)    
+        end = time.time()
+        if i % 2 == 0:
+            total_time += end - start
+    
+    avg_time = total_time / (R/2)
+    bandwidth = 2 * N  *4 / avg_time / 1073741824
+    throughput = 2 * N / avg_time 
+
+    print(f"N: {N} <T>: {avg_time: .6f} sec B: {bandwidth: .3f} GB/sec F: {throughput: .3f} FLOP/sec")
