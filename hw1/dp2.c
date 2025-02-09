@@ -20,6 +20,7 @@ int main(int argc, char *argv[]) {
     struct timespec start, end;
     double elapsed_time, total_time = 0.0;
     double avg_time, bandwidth, throughput;
+    volatile float result;
 
     // Initialize A and B
     for (int i = 0; i < N; i++) {
@@ -30,7 +31,7 @@ int main(int argc, char *argv[]) {
     // Execute dp function
     for (int i = 0; i < nloop; i++) {
         clock_gettime(CLOCK_MONOTONIC, &start);
-        dpunroll(N, A, B);
+        result = dpunroll(N, A, B);
         clock_gettime(CLOCK_MONOTONIC, &end);
         elapsed_time = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
         if (i / 2 == 0) {
@@ -43,7 +44,9 @@ int main(int argc, char *argv[]) {
     bandwidth = 2 * N * sizeof(float) / avg_time / 1073741824;
     throughput = 2 * N / avg_time;
 
+    printf("Result: %.2f\n", result);
     printf("N: %ld <T>: %.6f sec B: %.3f GB/sec F: %.3f FLOP/sec\n", N, avg_time, bandwidth, throughput);
+    printf("N: %ld <T>: %.2e sec B: %.3e GB/sec F: %.3e FLOP/sec\n", N, avg_time, bandwidth, throughput);
 
     return 0;
 }

@@ -2,6 +2,11 @@
 Explain the rationale and expected consequence of only using the second half of the measurements for the computation of the mean execution time. Moreover, explain what type of mean is appropriate for the calculations, and why. 
 
 **Solution:**
+1. Rationale: 
+    Using only the second half of the measurements to compute the mean execution time primarily aims to capture the system's performance after it has reached a stable state, avoiding initial transient effects such as warming up or setup anomalies. This approach helps to focus on a more consistent and representative dataset, providing a clearer picture of the system's typical operational efficiency and minimizing the impact of any initial outliers or irregularities.
+2. Expected consequence:
+    It is beneficial to reduce the impact of outliers on the mean. Using only the latter half of the measurements likely leads to a mean that better represents the system's performance under a typical load. If initial workload are abnormally high given the warm-up influence, excluding them helps in focusing on typical performance.
+3. **Arithmetic mean** is appropriate for the calculations because each trail with same input size contribute equally to the final result.
 
 
 ## Q2

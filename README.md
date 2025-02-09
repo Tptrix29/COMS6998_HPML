@@ -3,7 +3,7 @@ Homework for High Performance Machine Learning course at Columbia University
 
 
 ## Contents
-- Homework 1: Performance Comparison of Matrix Multiplication
+- Homework 1: Performance Comparison of Vector Dot Product
     Compile command: `gcc -O3 -Wall -o dp1 dp1.c`
     Test command: 
     - C: `./dp1 1000000 1000`
