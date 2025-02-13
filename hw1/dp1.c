@@ -24,6 +24,7 @@ int main(int argc, char *argv[]) {
 
     struct timespec start, end;
     double elapsed_time, total_time = 0.0;
+    double total_bandwidth_inv = 0.0, total_throughput_inv = 0.0;
     double avg_time, bandwidth, throughput;
     volatile float result;
 
@@ -42,13 +43,18 @@ int main(int argc, char *argv[]) {
         elapsed_time = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
         if (i / 2 == 0) {
             total_time += elapsed_time;
+            total_bandwidth_inv += elapsed_time * 1073741824 / (2 * N * sizeof(float));
+            total_throughput_inv += elapsed_time / (2 * N);
         }
     }
 
     // Calculate average time, bandwidth, and throughput
     avg_time = total_time / (nloop / 2);
-    bandwidth = 2 * N * sizeof(float) / avg_time / 1073741824;
-    throughput = 2 * N / avg_time;
+    // bandwidth = 2 * N * sizeof(float) / avg_time / 1073741824;
+    // throughput = 2 * N / avg_time;
+
+    bandwidth = nloop / total_bandwidth_inv;
+    throughput = nloop / total_throughput_inv;
     
     printf("Result: %.2f\n", result);
     printf("N: %ld <T>: %.6f sec B: %.3f GB/sec F: %.3f FLOP/sec\n", N, avg_time, bandwidth, throughput);
