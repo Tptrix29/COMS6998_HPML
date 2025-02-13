@@ -12,7 +12,8 @@ float bdp(long N, float *pA, float *pB) {
 int main(int argc, char *argv[]) {
     long N = atol(argv[1]);
     int nloop = atoi(argv[2]);
-    float A[N], B[N];
+    float *A = (float *)malloc(N * sizeof(float));
+    float *B = (float *)malloc(N * sizeof(float));
 
     struct timespec start, end;
     double elapsed_time, total_time = 0.0;
@@ -44,6 +45,9 @@ int main(int argc, char *argv[]) {
     printf("Result: %.2f\n", result);
     printf("N: %ld <T>: %.6f sec B: %.3f GB/sec F: %.3f FLOP/sec\n", N, avg_time, bandwidth, throughput);
     printf("N: %ld <T>: %.2e sec B: %.3e GB/sec F: %.3e FLOP/sec\n", N, avg_time, bandwidth, throughput);
+
+    free(A);
+    free(B);
 
     return 0;
 }

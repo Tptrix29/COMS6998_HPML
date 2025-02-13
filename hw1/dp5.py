@@ -32,3 +32,4 @@ if __name__ == "__main__":
     throughput = 2 * N / avg_time 
 
     print(f"N: {N} <T>: {avg_time: .6f} sec B: {bandwidth: .3f} GB/sec F: {throughput: .3f} FLOP/sec")
+    print(f"R: {R} <T>: {avg_time: .2e} sec B: {bandwidth: .3e} GB/sec F: {throughput: .3e} FLOP/sec")

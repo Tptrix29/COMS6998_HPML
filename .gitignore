@@ -1,3 +1,4 @@
 /hw1/dp*
 !/hw1/dp*.c
 !/hw1/dp*.py
+**/*.log

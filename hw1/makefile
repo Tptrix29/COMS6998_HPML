@@ -1,34 +1,17 @@
-# Define the compiler
 CC=gcc
-
-# Define any compile-time flags
 CFLAGS=-O3 -Wall
+MKL_PATH=/opt/intel/oneapi/mkl/2022.2.0
 
-# Define the names of the executables to produce
-TARGET1=dp1
-TARGET2=dp2
+all: dp1 dp2 dp3
 
-# Define the source files for each target
-SRC1=dp1.c
-SRC2=dp2.c
+dp1: dp1.c
+	$(CC) $(CFLAGS) -o dp1 dp1.c
 
-# Define the object files for each source
-OBJ1=$(SRC1:.c=.o)
-OBJ2=$(SRC2:.c=.o)
+dp2: dp2.c
+	$(CC) $(CFLAGS) -o dp2 dp2.c
 
-.PHONY: all clean
-
-all: $(TARGET1) $(TARGET2)
-
-$(TARGET1): $(OBJ1)
-	$(CC) $(CFLAGS) -o $(TARGET1) $(OBJ1)
-
-$(TARGET2): $(OBJ2)
-	$(CC) $(CFLAGS) -o $(TARGET2) $(OBJ2)
-
-# Define a rule for compiling .c files to .o files
-.c.o:
-	$(CC) $(CFLAGS) -c $< -o $@
+dp3: dp3.c
+	$(CC) $(CFLAGS) -I $(MKL_PATH)/include -o dp3 dp3.c -L $(MKL_PATH)/lib -lmkl_rt
 
 clean:
-	rm -f $(TARGET1) $(TARGET2) $(OBJ1) $(OBJ2)
+	rm -f dp1 dp2 dp3 *.o
