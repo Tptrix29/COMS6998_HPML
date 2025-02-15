@@ -43,7 +43,7 @@ int main(int argc, char *argv[]) {
         elapsed_time = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
         if (i / 2 == 0) {
             total_time += elapsed_time;
-            total_bandwidth_inv += elapsed_time * 1073741824 / (2 * N * sizeof(float));
+            total_bandwidth_inv += elapsed_time * 1e9 / (2 * N * sizeof(float));
             total_throughput_inv += elapsed_time / (2 * N);
         }
     }
