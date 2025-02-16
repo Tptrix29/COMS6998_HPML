@@ -23,16 +23,19 @@ if __name__ == "__main__":
     B = np.ones(N,dtype=np.float32)
 
     total_time = 0.0
+    total_bandwidth, total_throughput = 0.0, 0.0
     for i in range(R):
         start = time.time()
-        dp(N, A, B)    
+        result = dp(N, A, B)    
         end = time.time()
-        if i % 2 == 0:
+        if i >= R/2:
             total_time += end - start
-    
+            total_bandwidth += 2 * N * 4 / (end - start)
+            total_throughput += 2 * N / (end - start)
     avg_time = total_time / (R/2)
-    bandwidth = 2 * N  *4 / avg_time / 1073741824
-    throughput = 2 * N / avg_time 
+    bandwidth = total_bandwidth / (R/2) / 1073741824
+    throughput = total_throughput / (R/2)
 
+    print(f"Result: {result}")
     print(f"N: {N} <T>: {avg_time: .6f} sec B: {bandwidth: .3f} GB/sec F: {throughput: .3f} FLOP/sec")
     print(f"R: {R} <T>: {avg_time: .2e} sec B: {bandwidth: .3e} GB/sec F: {throughput: .3e} FLOP/sec")
