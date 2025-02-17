@@ -2,3 +2,6 @@
 !/hw1/dp*.c
 !/hw1/dp*.py
 **/*.log
+
+**/__pycache__/
+**/.ipynb_checkpoints/
