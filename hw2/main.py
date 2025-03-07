@@ -1,5 +1,6 @@
 import time
 import argparse
+from rich.progress import track
 
 import torch
 import torch.nn as nn
@@ -20,7 +21,7 @@ def parser() -> argparse.ArgumentParser:
     # model settings
     parser.add_argument('--random_seed', type=int, default=42, help='random seed (default: 42)')
     parser.add_argument('--batch_norm', action='store_true', default=True, help='use batch normalization')
-    parser.add_argument('--compile', action='store_true', default=False, help='compile model with TorchInductor')
+    parser.add_argument('--compile', type=str, default='eager', help='compile mode', choices=['eager', 'default', 'reduce', 'autotune'])
     # dataset settings
     parser.add_argument('--input_dir', type=str, default='./data', help='input directory for CIFAR-10 dataset (default: ./data)')
     parser.add_argument('--worker', type=int, default=2, help='number of workers to load data (default: 2)')
@@ -56,11 +57,24 @@ def main(args: argparse.Namespace) -> None:
     batch_norm = args.batch_norm
     optim = args.optim
     log_dir = args.log_dir
+    compile_mode = args.compile
 
     torch.manual_seed(args.random_seed)
 
-    resnet = ResNet18(batch_norm=batch_norm)
-    logger.info(f'Created ResNet18 model [BatchNorm: {batch_norm}]')
+    resnet = ResNet18(batch_norm=batch_norm).to(device)
+    if compile_mode == 'eager':
+        pass
+    elif compile_mode == 'default':
+        resnet = torch.compile(resnet, backend="inductor", mode="default")
+    elif compile_mode == 'reduce':
+        resnet = torch.compile(resnet, backend="inductor", mode="reduce-overhead")
+    elif compile_mode == 'autotune':
+        resnet = torch.compile(resnet, backend="inductor", mode="autotune")
+    else:
+        resnet = resnet
+    mode_dict = {'eager': 'No compilation', 'default': 'default', 'reduce': 'reduce-overhead', 'autotune': 'autotune'}
+    logger.info(f'Created ResNet18 model [BatchNorm: {batch_norm}, Compile Mode: {mode_dict[compile_mode]}]')
+
     if optim == 'sgd':
         optimizer = torch.optim.SGD(resnet.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
     elif optim == 'nestrov':
@@ -73,7 +87,7 @@ def main(args: argparse.Namespace) -> None:
         optimizer = torch.optim.Adam(resnet.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=5e-4)
     else:
         raise ValueError(f'invalid optimizer: {optim}')
-    
+
     logger.info(f'Using {optim.upper()} optimizer')
 
     train_loader = fetch_dataloader(input_dir, batch_size, worker)
@@ -88,37 +102,43 @@ def main(args: argparse.Namespace) -> None:
 
 
 def train(resnet: ResNet18, epochs: int, dataloader: DataLoader, optimizer: torch.optim.Optimizer, device: str) -> None:
-    resnet = resnet.to(device)
     resnet.train()
+    total_loss = 0
+    top1_accuracy = 0
+    batch_count = 0
     for e in range(epochs):
         epoch_elapsed = epoch_dataload = epoch_train = 0
-        epoch_start = time.perf_counter()
+        epoch_start = time.perf_counter()  # start epoch time
         logger.debug(f"========= Epoch {e} =========")
         dataload_start = time.perf_counter()
-        for i, batch in enumerate(dataloader):
-            dataload_end = time.perf_counter()
-            epoch_dataload += dataload_end - dataload_start
+        for i, batch in track(enumerate(dataloader), description=f'Epoch {e+1}: '):
+            dataload_end = time.perf_counter()  # end dataloader time
+            epoch_dataload += dataload_end - dataload_start  # accumulate dataloader time
 
             img, label = batch
             img, label = img.to(device), label.to(device)
             
-            train_start = time.perf_counter()
+            train_start = time.perf_counter()  # start training time
             output = resnet(img)
             loss = nn.CrossEntropyLoss()(output, label)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            train_end = time.perf_counter()
-            epoch_train += train_end - train_start
+            train_end = time.perf_counter()  # end training time
+            epoch_train += train_end - train_start  # accumulate training time
+            
 
             train_acc = (output.argmax(dim=1) == label).float().mean()
+            top1_accuracy = max(top1_accuracy, train_acc.item())  # update top1 accuracy
+            total_loss += loss.item()
+            batch_count += 1
             logger.debug(f'batch {i}, loss: {loss.item(): .6f}, accuracy: {train_acc.item(): .4f}')
 
-            dataload_start = time.perf_counter()
-        epoch_end = time.perf_counter()
-        epoch_elapsed = epoch_end - epoch_start
+            dataload_start = time.perf_counter()  # start dataloader time
+        epoch_end = time.perf_counter()  # end epoch time
+        epoch_elapsed = epoch_end - epoch_start  # calculate epoch elapsed time
         logger.info(f'[Benchmark] - Epoch {e+1}, elapsed: {epoch_elapsed:.4f}s, dataload: {epoch_dataload:.4f}s, training: {epoch_train:.4f}s')
-
+    logger.info(f'[Benchmark] - per-batch loss: {total_loss / batch_count:.6f}, top1 accuracy: {top1_accuracy:.4f}')
 
 def train_profile(resnet: ResNet18, epochs: int, dataloader: DataLoader, optimizer: torch.optim.Optimizer, device: str, log_dir: str) -> None:
     resnet = resnet.to(device)
