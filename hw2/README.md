@@ -2,21 +2,33 @@
 
 ### Files
 - `README.md`: Instructions for the assignment
+- `requirements.txt`: Python dependencies
 - `model.py`: ResNet model definition
 - `main.py`: Main script to train and evaluate the model
+- `run.sh`: Script for all the experiments
+- `extra.sh`: Script for extra credit
+- `HW2.ipynb`: Notebook for analysis and plots
 
-- `C3.sh`: Script for C3 questison: find out optimal worker number
 
 ### Usage
 ```shell
 # Install dependencies
 pip install -r requirements.txt
+# Create virtual environment
+python3 -m venv env
+source env/bin/activate
+# Env setup
+sudo apt-get update
+sudo apt-get install libc-bin
+export PATH=$PATH:/sbin
 # Show help
 python main.py -h
-# Train and evaluate the model
-python main.py --input_dir <path_to_input_dir> --optim <optimizer> --epochs <num_epochs> --worker <num_workers>
-# Example 1: Train and evaluate the model with SGD optimizer on CPU
-python main.py --input_dir ./data --optim sgd --epochs 5 --worker 2
-# Example 2: Train and evaluate the model with SGD optimizer on GPU
-python main.py --input_dir ./data --optim sgd --epochs 5 --worker 2 --cuda 
+# Benchmark
+bash run.sh
+# Next: Analyze the results in HW2.ipynb
+
+# Extra credit
+bash extra.sh
+# Visualize via TensorBoard
+tensorboard --logdir=log
 ```

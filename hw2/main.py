@@ -73,10 +73,10 @@ def main(args: argparse.Namespace) -> None:
     elif compile_mode == 'reduce':
         resnet = torch.compile(resnet, backend="inductor", mode="reduce-overhead")
     elif compile_mode == 'autotune':
-        resnet = torch.compile(resnet, backend="inductor", mode="autotune")
+        resnet = torch.compile(resnet, backend="inductor", mode="max-autotune")
     else:
         resnet = resnet
-    mode_dict = {'eager': 'No compilation', 'default': 'default', 'reduce': 'reduce-overhead', 'autotune': 'autotune'}
+    mode_dict = {'eager': 'No compilation', 'default': 'default', 'reduce': 'reduce-overhead', 'autotune': 'max-autotune'}
     logger.info(f'Created ResNet18 model [BatchNorm: {batch_norm}, Compile Mode: {mode_dict[compile_mode]}]')
 
     if optim == 'sgd':
@@ -107,27 +107,31 @@ def main(args: argparse.Namespace) -> None:
 
 def train(resnet: ResNet18, epochs: int, dataloader: DataLoader, optimizer: torch.optim.Optimizer, device: str) -> None:
     resnet.train()
-    total_loss = 0
-    top1_accuracy = 0
-    batch_count = 0
+    total_loss = top1_accuracy = 0
     for e in range(epochs):
         epoch_elapsed = epoch_dataload = epoch_train = 0
+        torch.cuda.synchronize()
         epoch_start = time.perf_counter()  # start epoch time
         logger.debug(f"========= Epoch {e} =========")
+        torch.cuda.synchronize()
         dataload_start = time.perf_counter()
         for i, batch in track(enumerate(dataloader), description=f'Epoch {e+1}: ', finished_style='green', total=len(dataloader)):
+            torch.cuda.synchronize()
             dataload_end = time.perf_counter()  # end dataloader time
             epoch_dataload += dataload_end - dataload_start  # accumulate dataloader time
 
             img, label = batch
             img, label = img.to(device), label.to(device)
-            
+
+            torch.cuda.synchronize()
             train_start = time.perf_counter()  # start training time
             output = resnet(img)
             loss = nn.CrossEntropyLoss()(output, label)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+
+            torch.cuda.synchronize()
             train_end = time.perf_counter()  # end training time
             epoch_train += train_end - train_start  # accumulate training time
             
@@ -135,14 +139,15 @@ def train(resnet: ResNet18, epochs: int, dataloader: DataLoader, optimizer: torc
             train_acc = (output.argmax(dim=1) == label).float().mean()
             top1_accuracy = max(top1_accuracy, train_acc.item())  # update top1 accuracy
             total_loss += loss.item()
-            batch_count += 1
             logger.debug(f'batch {i}, loss: {loss.item(): .6f}, accuracy: {train_acc.item(): .4f}')
 
+            torch.cuda.synchronize()
             dataload_start = time.perf_counter()  # start dataloader time
         epoch_end = time.perf_counter()  # end epoch time
         epoch_elapsed = epoch_end - epoch_start  # calculate epoch elapsed time
         logger.info(f'[Benchmark] - Epoch {e+1}, elapsed: {epoch_elapsed:.4f}s, dataload: {epoch_dataload:.4f}s, training: {epoch_train:.4f}s')
-    logger.info(f'[Benchmark] - per-batch loss: {total_loss / batch_count:.6f}, top1 accuracy: {top1_accuracy:.4f}')
+        logger.info(f'[Benchmark] - Epoch {e+1}, per-batch loss: {total_loss / (i+1): .6f}, top1 accuracy: {top1_accuracy:.4f}')
+        total_loss = top1_accuracy = 0  # reset loss and accuracy
 
 def train_profile(resnet: ResNet18, epochs: int, dataloader: DataLoader, optimizer: torch.optim.Optimizer, device: str, log_dir: str) -> None:
     resnet = resnet.to(device)
@@ -158,18 +163,17 @@ def train_profile(resnet: ResNet18, epochs: int, dataloader: DataLoader, optimiz
             active=3,  # Record profiling for 3 steps per epoch
             repeat=epochs  # Repeat schedule for multiple epochs
         ),
-        on_trace_ready=torch.profiler.tensorboard_trace_handler(f"{log_dir}/{time.time()}"),  # Save trace for TensorBoard
+        on_trace_ready=torch.profiler.tensorboard_trace_handler(f"{log_dir}/{time.strftime('%Y%m%d-%H%M%S')}"),  # Save trace to TensorBoard
         record_shapes=True,
         profile_memory=True,
         with_stack=True
     ) as prof:
         for e in range(epochs):
             logger.debug(f"========= Epoch {e} =========")
-            for i, batch in enumerate(dataloader):
+            for i, batch in track(enumerate(dataloader), description=f'Epoch {e+1}: ', finished_style='green', total=len(dataloader)):
                 img, label = batch
                 img, label = img.to(device), label.to(device)
                 print(img.device)
-                
                 output = resnet(img)
                 loss = nn.CrossEntropyLoss()(output, label)
                 optimizer.zero_grad()

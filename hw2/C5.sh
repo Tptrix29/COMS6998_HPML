@@ -1,1 +1,0 @@
-python3 main.py --epochs 5 --batch_size 128 --random_seed 42 --worker 4

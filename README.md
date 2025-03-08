@@ -36,7 +36,9 @@ Homework for High Performance Machine Learning course at Columbia University
 - Homework 2: Performance Benchmark for ResNet18
     Prerequisites: prepare for torch._dynamo usage:
     ```shell
+    sudo apt-get update
     sudo apt-get install libc-bin
+    export PATH=$PATH:/sbin
     ```
     Run training benchmark:
     ```shell
