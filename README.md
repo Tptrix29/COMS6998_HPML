@@ -34,3 +34,18 @@ Homework for High Performance Machine Learning course at Columbia University
     bash benchmark.sh  # run benchmarks
     ```
 - Homework 2: Performance Benchmark for ResNet18
+    Prerequisites: prepare for torch._dynamo usage:
+    ```shell
+    sudo apt-get install libc-bin
+    ```
+    Run training benchmark:
+    ```shell
+    # eager mode
+    python main.py --cuda --epochs 5 --batch_size 128 --random_seed 42 --worker 2
+    # default compile mode
+    python main.py --cuda --epochs 5 --batch_size 128 --random_seed 42 --worker 2 --compile default --droplast
+    # reduce-overhear compile mode
+    python main.py --cuda --epochs 5 --batch_size 128 --random_seed 42 --worker 2 --compile reduce --droplast
+    # autotune compile mode
+    python main.py --cuda --epochs 5 --batch_size 128 --random_seed 42 --worker 2 --compile autotune --droplast
+    ```

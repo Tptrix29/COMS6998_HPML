@@ -12,6 +12,8 @@ from utils import Logger
 
 logger: Logger = Logger()
 
+torch.set_float32_matmul_precision('high')
+
 def parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description='ResNet for CIFAR-10')
     # logger settings
@@ -20,7 +22,7 @@ def parser() -> argparse.ArgumentParser:
     parser.add_argument('--log_dir', type=str, default='./log', help='log directory for profiling (default: ./log)')
     # model settings
     parser.add_argument('--random_seed', type=int, default=42, help='random seed (default: 42)')
-    parser.add_argument('--batch_norm', action='store_true', default=True, help='use batch normalization')
+    parser.add_argument('--disable_batch_norm', dest='batch_norm', action='store_false', help='disable batch normalization')
     parser.add_argument('--compile', type=str, default='eager', help='compile mode', choices=['eager', 'default', 'reduce', 'autotune'])
     # dataset settings
     parser.add_argument('--input_dir', type=str, default='./data', help='input directory for CIFAR-10 dataset (default: ./data)')
@@ -28,12 +30,13 @@ def parser() -> argparse.ArgumentParser:
     # training settings
     parser.add_argument('--batch_size', type=int, default=128, help='input batch size for training (default: 128)')
     parser.add_argument('--epochs', type=int, default=5, help='number of epochs to train (default: 5)')
-    parser.add_argument('--optim', type=str, default='sgd', help='optimizer to use (default: sgd)')
+    parser.add_argument('--optim', type=str, default='sgd', help='optimizer to use (default: sgd)', choices=['sgd', 'nestrov', 'adagrad', 'adadelta', 'adam'])
     parser.add_argument('--cuda', action='store_true', default=False, help='enables CUDA training')
+    parser.add_argument('--droplast', action='store_true', default=False, help='drop last batch in DataLoader')
     
     return parser
 
-def fetch_dataloader(input_dir: str, batch_size: int, worker: int) -> DataLoader:
+def fetch_dataloader(input_dir: str, batch_size: int, worker: int, drop_last: bool) -> DataLoader:
     img_transform = transforms.Compose([
         transforms.ToTensor(),
         transforms.RandomCrop(32, padding=4),
@@ -43,7 +46,7 @@ def fetch_dataloader(input_dir: str, batch_size: int, worker: int) -> DataLoader
     
     train_dataset = datasets.CIFAR10(input_dir, train=True, download=True, transform=img_transform)
     logger.info(f'Loaded CIFAR-10 training dataset from "{input_dir}", Size: {len(train_dataset)}')
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=worker)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=worker, drop_last=drop_last)
     logger.info(f'Created DataLoader with batch size {batch_size} and {worker} workers')
     return train_loader
 
@@ -58,6 +61,7 @@ def main(args: argparse.Namespace) -> None:
     optim = args.optim
     log_dir = args.log_dir
     compile_mode = args.compile
+    drop_last = args.droplast
 
     torch.manual_seed(args.random_seed)
 
@@ -80,17 +84,17 @@ def main(args: argparse.Namespace) -> None:
     elif optim == 'nestrov':
         optimizer = torch.optim.SGD(resnet.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4, nesterov=True)
     elif optim == 'adagrad':
-        optimizer = torch.optim.Adagrad(resnet.parameters(), lr=0.01, weight_decay=5e-4)
+        optimizer = torch.optim.Adagrad(resnet.parameters(), lr=0.1, weight_decay=5e-4)
     elif optim == 'adadelta':
-        optimizer = torch.optim.Adadelta(resnet.parameters(), lr=1.0, rho=0.9, eps=1e-06, weight_decay=5e-4)
+        optimizer = torch.optim.Adadelta(resnet.parameters(), lr=0.1, weight_decay=5e-4)
     elif optim == 'adam':
-        optimizer = torch.optim.Adam(resnet.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=5e-4)
+        optimizer = torch.optim.Adam(resnet.parameters(), lr=0.1, weight_decay=5e-4)
     else:
         raise ValueError(f'invalid optimizer: {optim}')
 
     logger.info(f'Using {optim.upper()} optimizer')
 
-    train_loader = fetch_dataloader(input_dir, batch_size, worker)
+    train_loader = fetch_dataloader(input_dir, batch_size, worker, drop_last)
 
     logger.info('Start training ResNet18 ...')
     logger.info(f'Using device: {device}')
@@ -111,7 +115,7 @@ def train(resnet: ResNet18, epochs: int, dataloader: DataLoader, optimizer: torc
         epoch_start = time.perf_counter()  # start epoch time
         logger.debug(f"========= Epoch {e} =========")
         dataload_start = time.perf_counter()
-        for i, batch in track(enumerate(dataloader), description=f'Epoch {e+1}: '):
+        for i, batch in track(enumerate(dataloader), description=f'Epoch {e+1}: ', finished_style='green', total=len(dataloader)):
             dataload_end = time.perf_counter()  # end dataloader time
             epoch_dataload += dataload_end - dataload_start  # accumulate dataloader time
 

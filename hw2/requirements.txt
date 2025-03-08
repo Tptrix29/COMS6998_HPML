@@ -1,3 +1,6 @@
+# Add this line to allow pip to find the correct wheel files
+-f https://download.pytorch.org/whl/torch_stable.html
+
 torch==2.1.0+cu121
 torchvision==0.16.0+cu121
 triton
@@ -8,3 +11,4 @@ tqdm
 tensorboard
 torch_tb_profiler
 rich
+colorama
