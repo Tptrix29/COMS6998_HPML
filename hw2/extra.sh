@@ -3,7 +3,7 @@ rm -f profile.log
 echo "Profiling for C2..."
 python3 main.py --cuda --epochs 5 --batch_size 128 --random_seed 42 --worker 2 --profile >> profile.log 2>&1
 echo "C2 Done"
-python main.py --cuda --epochs 5 --batch_size 128 --random_seed 42 --worker 2 --profile
+
 # C3
 echo "Profiling for C3..."
 workers=(0 4 8)

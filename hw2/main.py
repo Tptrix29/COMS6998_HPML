@@ -173,7 +173,7 @@ def train_profile(resnet: ResNet18, epochs: int, dataloader: DataLoader, optimiz
             for i, batch in track(enumerate(dataloader), description=f'Epoch {e+1}: ', finished_style='green', total=len(dataloader)):
                 img, label = batch
                 img, label = img.to(device), label.to(device)
-                print(img.device)
+                # print(img.device)
                 output = resnet(img)
                 loss = nn.CrossEntropyLoss()(output, label)
                 optimizer.zero_grad()

@@ -12,6 +12,9 @@
 
 ### Usage
 ```shell
+# Create venv
+python3 -m venv env
+source env/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 # Create virtual environment
@@ -23,7 +26,7 @@ sudo apt-get install libc-bin
 export PATH=$PATH:/sbin
 # Show help
 python main.py -h
-# Benchmark
+# Benchmark for one command
 bash run.sh
 # Next: Analyze the results in HW2.ipynb
 
