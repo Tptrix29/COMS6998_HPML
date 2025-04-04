@@ -3,6 +3,9 @@
 !/hw1/dp*.py
 **/*.log
 
+# C/C++ compilation
+*.o
+
 **/__pycache__/
 **/.ipynb_checkpoints/
 **/env/
@@ -12,6 +15,7 @@
 **/output/
 
 .DS_Store
+.vscode/
 
 *.pdf
 *.tar
