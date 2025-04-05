@@ -12,37 +12,35 @@
 #define K 64
 
 // Kernel function to perform 2D convolution without tiling
-__global__ void conv2d(double* input, double* filter, double* output) {
-    // Calculate output position
-    int w = blockIdx.x * blockDim.x + threadIdx.x;
-    int h = blockIdx.y * blockDim.y + threadIdx.y;
-    
-    // Check if the thread is within the output bounds
-    if (w < W && h < H) {
-        for (int k = 0; k < K; k++) {
-            double sum = 0.0;
+__global__ void conv2d(double *input, double *filter, double *output) {
+// Compute output coordinates and filter index using block and thread indices.
+    int out_x = blockIdx.x * blockDim.x + threadIdx.x; // Output column index
+    int out_y = blockIdx.y * blockDim.y + threadIdx.y; // Output row index
+    int k     = blockIdx.z * blockDim.z + threadIdx.z; // Filter index
 
-            for (int c = 0; c < C; c++) {
-                for (int fh = 0; fh < FH; fh++) {
-                    for (int fw = 0; fw < FW; fw++) {
-                        // Calculate the corresponding input position (with padding adjustment)
-                        int input_h = h + fh - P;
-                        int input_w = w + fw - P;
-
-                        // Check if the input position is within the valid input bounds
-                        if (input_h >= 0 && input_h < H && input_w >= 0 && input_w < W) {
-                            int input_idx = c * H * W + input_h * W + input_w;
-                            int filter_idx = k * C * FH * FW + c * FH * FW + fh * FW + fw;
-
-                            sum += input[input_idx] * filter[filter_idx];
-                        }
+    // Only proceed if within the output boundaries.
+    if (out_x < W && out_y < H && k < K) {
+        double sum = 0.0;
+        // Loop over every input channel and the filter spatial dimensions.
+        for (int c = 0; c < C; c++) {
+            for (int fh = 0; fh < FH; fh++) {
+                for (int fw = 0; fw < FW; fw++) {
+                    // Compute corresponding input coordinates (accounting for padding)
+                    int in_y = out_y + fh - P;
+                    int in_x = out_x + fw - P;
+                    double input_val = 0.0;
+                    // Use zero padding: if the index is out of bounds, the value remains zero.
+                    if (in_y >= 0 && in_y < H && in_x >= 0 && in_x < W) {
+                        input_val = input[c * H * W + in_y * W + in_x];
                     }
+                    // Load the corresponding filter weight.
+                    double filter_val = filter[k * C * FH * FW + c * FH * FW + fh * FW + fw];
+                    sum += input_val * filter_val;
                 }
             }
-
-            int output_idx = k * H * W + h * W + w;
-            output[output_idx] = sum;
         }
+    // Write the computed sum to the output tensor.
+        output[k * H * W + out_y * W + out_x] = sum;
     }
 }
 
@@ -96,8 +94,8 @@ int main(int argc, char* argv[]) {
     check_cuda_error(cudaMemcpy(d_filter, h_filter, filter_size, cudaMemcpyHostToDevice), "Failed to copy filter to device");
     
     // Define grid and block sizes
-    dim3 block(16, 16);
-    dim3 grid((W + block.x - 1) / block.x, (H + block.y - 1) / block.y);
+    dim3 block(16, 16, 1);
+    dim3 grid((W + block.x - 1) / block.x, (H + block.y - 1) / block.y, K);
 
     // Warm up
     conv2d<<<grid, block>>>(d_input, d_filter, d_output);

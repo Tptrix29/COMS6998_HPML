@@ -15,61 +15,64 @@
 
 // Kernel function to perform 2D convolution without tiling
 __global__ void conv2d(double* input, double* filter, double* output) {
-    // Shared memory tile size (with halo for the filter size)
-    __shared__ double shared_input[(TILE_WIDTH + 2) * (TILE_WIDTH + 2) * 8]; // 8 is max C, adjust as needed
+    // For same convolution with P = 1, the shared memory tile size must include a 1-pixel border.
+    const int tile_rows = TILE_WIDTH + 2 * P; // 16 + 2 = 18
+    const int tile_cols = TILE_WIDTH + 2 * P; // 18
 
-    int tx = threadIdx.x;
-    int ty = threadIdx.y;
+    // Allocate shared memory: one tile for each channel.
+    __shared__ double sharedInput[C][tile_rows][tile_cols];
 
-    int w_out = blockIdx.x * TILE_WIDTH + tx;
-    int h_out = blockIdx.y * TILE_WIDTH + ty;
+    // Compute the output pixel indices this thread is responsible for.
+    int out_row = blockIdx.y * blockDim.y + threadIdx.y;
+    int out_col = blockIdx.x * blockDim.x + threadIdx.x;
+    int k = blockIdx.z;  // Each block in z-dimension handles one filter (kernel) index.
 
-    for (int k = 0; k < K; k++) {
-        double sum = 0.0;
+    // The top-left corner (in the global input) corresponding to the tile, without padding.
+    int in_row_start = blockIdx.y * blockDim.y;
+    int in_col_start = blockIdx.x * blockDim.x;
 
+    // Each thread loads one or more elements of the shared tile.
+    int threadId = threadIdx.y * blockDim.x + threadIdx.x;
+    int numThreads = blockDim.x * blockDim.y;
+    int numElements = tile_rows * tile_cols;
+
+    // Load the tile (with halo) into shared memory.
+    for (int idx = threadId; idx < numElements; idx += numThreads) {
+        int i = idx / tile_cols;  // Row index in the shared tile.
+        int j = idx % tile_cols;  // Column index in the shared tile.
+        // Adjust index in global in put for padding offset
+        int global_row = in_row_start - P + i;
+        int global_col = in_col_start - P + j;
         for (int c = 0; c < C; c++) {
-            // Calculate input tile coordinates (with padding)
-            for (int dy = ty; dy < TILE_WIDTH + FH - 1; dy += blockDim.y) {
-                for (int dx = tx; dx < TILE_WIDTH + FW - 1; dx += blockDim.x) {
-                    int input_h = blockIdx.y * TILE_WIDTH + dy - P;
-                    int input_w = blockIdx.x * TILE_WIDTH + dx - P;
+            if (global_row >= 0 && global_row < H && global_col >= 0 && global_col < W) {
+                sharedInput[c][i][j] = input[c * H * W + global_row * W + global_col];
+            } else {
+                sharedInput[c][i][j] = 0.0;
+            }
+        }
+    }
 
-                    double value = 0.0;
-                    if (input_h >= 0 && input_h < H && input_w >= 0 && input_w < W) {
-                        int input_idx = c * H * W + input_h * W + input_w;
-                        value = input[input_idx];
-                    }
+    __syncthreads();
 
-                    int shared_idx = c * (TILE_WIDTH + FW - 1) * (TILE_WIDTH + FH - 1)
-                                     + dy * (TILE_WIDTH + FW - 1) + dx;
-                    shared_input[shared_idx] = value;
+    double sum = 0.0;
+    // Compute convolution if the output pixel is within the bounds.
+    if (out_row < H && out_col < W) {
+        // Iterate over channels and the filter window.
+        for (int c = 0; c < C; c++) {
+            for (int fh = 0; fh < FH; fh++) {
+                for (int fw = 0; fw < FW; fw++) {
+                    // Use threadIdx plus the filter offset to index into shared memory.
+                    double in_val = sharedInput[c][threadIdx.y + fh][threadIdx.x + fw];
+                    // Filter is stored as [K][C][FH][FW].
+                    double filter_val = filter[k * (C * FH * FW) +
+                                               c * (FH * FW) +
+                                               fh * FW +
+                                               fw];
+                    sum += in_val * filter_val;
                 }
             }
-
-            __syncthreads();  // Ensure all data is loaded
-
-            // Perform convolution
-            if (w_out < W && h_out < H) {
-                for (int fh = 0; fh < FH; fh++) {
-                    for (int fw = 0; fw < FW; fw++) {
-                        int shared_idx = c * (TILE_WIDTH + FW - 1) * (TILE_WIDTH + FH - 1)
-                                         + (ty + fh) * (TILE_WIDTH + FW - 1) + (tx + fw);
-
-                        int filter_idx = k * C * FH * FW + c * FH * FW + fh * FW + fw;
-
-                        sum += shared_input[shared_idx] * filter[filter_idx];
-                    }
-                }
-            }
-
-            __syncthreads();  // Wait before loading next channel
         }
-
-        // Write output
-        if (w_out < W && h_out < H) {
-            int output_idx = k * H * W + h_out * W + w_out;
-            output[output_idx] = sum;
-        }
+        output[k * (H * W) + out_row * W + out_col] = sum;
     }
 }
 
@@ -124,8 +127,8 @@ int main(int argc, char* argv[]) {
     check_cuda_error(cudaMemcpy(d_filter, h_filter, filter_size, cudaMemcpyHostToDevice), "Failed to copy filter to device");
     
     // Define grid and block sizes
-    dim3 block(16, 16);
-    dim3 grid((W + block.x - 1) / block.x, (H + block.y - 1) / block.y);
+    dim3 block(16, 16, 1);
+    dim3 grid((W + block.x - 1) / block.x, (H + block.y - 1) / block.y, K);
 
     // Warm up
     conv2d<<<grid, block>>>(d_input, d_filter, d_output);
