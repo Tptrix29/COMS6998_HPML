@@ -26,11 +26,12 @@ clean:
 tar:
 	tar -cvf $(TAR_FILE_NAME) Makefile *.h *.cu *.pdf *.txt
 #######################################################################
-
+# Compile the timer code
 timer.o : timer.cu timer.h
 	${NVCC} $< -c -o $@ $(OPTIONS)
 
 #######################################################################
+# Compile the vector addition code (No coalescing)
 vecaddKernel00.o : vecaddKernel00.cu
 	${NVCC} $< -c -o $@ $(OPTIONS)
 
@@ -39,7 +40,7 @@ vecadd00 : vecadd.cu vecaddKernel.h vecaddKernel00.o timer.o
 
 
 #######################################################################
-
+# Compile the vector addition code (Coalescing)
 vecaddKernel01.o : vecaddKernel01.cu
 	${NVCC} $< -c -o $@ $(OPTIONS)
 

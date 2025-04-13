@@ -7,8 +7,13 @@
 // Kernel function for array addition
 __global__ void add_arrays(float* a, float* b, float* c, int size) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < size) {
-        c[idx] = a[idx] + b[idx];
+    int totalThreads = blockDim.x * gridDim.x;
+    // Each thread processes multiple elements
+    for (int i = 0; i < (size - 1) / totalThreads + 1; i++) {
+        int index = i * totalThreads + idx;
+        if (index < size) {
+            c[index] = a[index] + b[index];
+        }
     }
 }
 
@@ -61,12 +66,10 @@ void run_scenario(int blocks, int threads_per_block, int size, int K) {
     // Start event
     cudaEventRecord(start);
 
-    // Launch kernel K times
-    for (int k = 0; k < K; k++) {
-        add_arrays<<<blocks, threads_per_block>>>(d_a, d_b, d_c, size);
-    }
+    // Launch kernel
+    add_arrays<<<blocks, threads_per_block>>>(d_a, d_b, d_c, size);
 
-    // Stop event
+    // Record stop event
     cudaEventRecord(stop);
     cudaEventSynchronize(stop);
 
@@ -83,6 +86,12 @@ void run_scenario(int blocks, int threads_per_block, int size, int K) {
     // Verify correctness with a few samples
     std::cout << "Sample results: c[0]=" << h_c[0] << ", c[size/2]=" << h_c[size/2] 
               << ", c[size-1]=" << h_c[size-1] << std::endl;
+    // Check sum
+    float sum = 0;
+    for (int i = 0; i < size; i++) {
+        sum += h_c[i];
+    }
+    std::cout << "Sum of c: " << sum << std::endl;
 
     // Free memory
     cudaFree(d_a);

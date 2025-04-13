@@ -7,8 +7,13 @@
 // Kernel function for array addition
 __global__ void add_arrays(float* a, float* b, float* c, int size) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < size) {
-        c[idx] = a[idx] + b[idx];
+    int totalThreads = blockDim.x * gridDim.x;
+    // Each thread processes multiple elements
+    for (int i = 0; i < (size - 1) / totalThreads + 1; i++) {
+        int index = i * totalThreads + idx;
+        if (index < size) {
+            c[index] = a[index] + b[index];
+        }
     }
 }
 
@@ -35,8 +40,8 @@ void run_scenario(int blocks, int threads_per_block, int size, int K) {
 
     // Initialize arrays directly (no need for separate host arrays)
     for (int i = 0; i < size; i++) {
-        a[i] = i;
-        b[i] = 2 * i;
+        a[i] = 1;
+        b[i] = 1;
     }
 
     // Warm up the GPU
@@ -52,10 +57,8 @@ void run_scenario(int blocks, int threads_per_block, int size, int K) {
     // Start event
     cudaEventRecord(start);
 
-    // Launch kernel K times
-    for (int k = 0; k < K; k++) {
-        add_arrays<<<blocks, threads_per_block>>>(a, b, c, size);
-    }
+    // Launch kernel
+    add_arrays<<<blocks, threads_per_block>>>(a, b, c, size);
 
     // Stop event
     cudaEventRecord(stop);
@@ -69,6 +72,17 @@ void run_scenario(int blocks, int threads_per_block, int size, int K) {
     cudaEventDestroy(start);
     cudaEventDestroy(stop);
 
+    // Copy result back to host (optional for profiling, but keep for correctness)
+    // Verify correctness with a few samples
+    std::cout << "Sample results: c[0]=" << c[0] << ", c[size/2]=" << c[size/2] 
+              << ", c[size-1]=" << c[size-1] << std::endl;
+    // Check sum
+    float sum = 0;
+    for (int i = 0; i < size; i++) {
+        sum += c[i];
+    }
+    std::cout << "Sum of c: " << sum << std::endl;
+
     // Free unified memory
     cudaFree(a);
     cudaFree(b);
@@ -76,7 +90,6 @@ void run_scenario(int blocks, int threads_per_block, int size, int K) {
 }
 
 int main(int argc, char* argv[]) {
-    int array_size = N;
     // Check command-line arguments
     if (argc != 2) {
         std::cerr << "Usage: " << argv[0] << " K" << std::endl;
@@ -85,6 +98,7 @@ int main(int argc, char* argv[]) {
     }
 
     int K = atoi(argv[1]);
+    int array_size = K * N;
 
     // Scenario 1: 1 block, 1 thread
     run_scenario(1, 1, array_size, K);

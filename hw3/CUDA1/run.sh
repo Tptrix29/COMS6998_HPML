@@ -11,3 +11,10 @@ do
 done
 
 # matmult
+MATRIX_SIZE=(256 512 1024)
+for s in ${MATRIX_SIZE[@]}
+do
+echo "Running with MATRIX_SIZE=$s"
+    ./matmult00 $(expr $s / 16)
+    ./matmult01 $(expr $s / 32)
+done
